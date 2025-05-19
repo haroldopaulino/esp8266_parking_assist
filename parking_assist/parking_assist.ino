@@ -1,62 +1,30 @@
 #include <WiFi.h>
 #include "FastLED.h"
 
-
-
-
 const char* ssid     = "my_wifi_network";
 const char* password = "my_wifi_password";
 const char* baseUrl = "my_rest_url";
 
-
-
-
 #define NUM_LEDS 150
-#define DATA_PIN 12
+#define DATA_PIN 6
 // Clock pin only needed for SPI based chipsets when not using hardware SPI
 
 CRGB leds[NUM_LEDS];
 
-int trigPin1 = 15;    // Trigger
-int echoPin1 = 2;    // Echo
-int sensorInches1 = 0;
-
-int trigPin2 = 0;    // Trigger
-int echoPin2 = 4;    // Echo
-int sensorInches2 = 0;
-
-int trigPin3 = 16;    // Trigger
-int echoPin3 = 17;    // Echo
-int sensorInches3 = 0;
-
-int trigPin4 = 5;    // Trigger
-int echoPin4 = 18;    // Echo
-int sensorInches4 = 0;
-
-int whatUltrasonic = 0;
-
+int trigPin = 12;    // Trigger
+int echoPin = 11;    // Echo
 long duration, cm, inches;
 
-int maximumDistanceInInches = 100;
 int inactivityCounter = 0;
-int inactivityTimeoutValue = 1500;
+int inactivityTimeoutValue = 150;
 int sleepMode = 0;
 int turnAllLightsOff = 0;
 int toleranceValue = -1;
 
 void setup() {
-  Serial.begin (115200);
-  pinMode(trigPin1, OUTPUT);
-  pinMode(echoPin1, INPUT);
-
-  pinMode(trigPin2, OUTPUT);
-  pinMode(echoPin2, INPUT);
-
-  pinMode(trigPin3, OUTPUT);
-  pinMode(echoPin3, INPUT);
-
-  pinMode(trigPin4, OUTPUT);
-  pinMode(echoPin4, INPUT);
+  Serial.begin (9600);
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
   
   FastLED.addLeds<WS2812B, DATA_PIN, GRB>(leds, NUM_LEDS);
 
@@ -64,44 +32,9 @@ void setup() {
 }
 
 void loop() {
-  whatUltrasonic++;
-  whatUltrasonic = (whatUltrasonic > 4 ? 1 : whatUltrasonic);
-
-  readDistanceSensor(whatUltrasonic);
+  readDistanceSensor();
   //sleepMode = 0;
-  delay(50);
-  
-  if ((sensorInches1 != 0) &&
-      (sensorInches1 < sensorInches2 && sensorInches1 < sensorInches3 && sensorInches1 < sensorInches4)) {
-    inches = sensorInches1;
-    //turnAllWhite();
-    Serial.print('Sensor 1: ');
-  }
-
-  if ((sensorInches2 != 0) &&
-      (sensorInches2 < sensorInches1 && sensorInches2 < sensorInches3 && sensorInches2 < sensorInches4)) {
-    inches = sensorInches2;
-    //turnAllRed();
-    Serial.print('Sensor 2: ');
-  }
-
-  if ((sensorInches3 != 0) &&
-      (sensorInches3 < sensorInches1 && sensorInches3 < sensorInches2 && sensorInches3 < sensorInches4)) {
-    inches = sensorInches3;
-    //turnAllGreen();
-    Serial.print('Sensor 3: ');
-  }
-
-  if ((sensorInches4 != 0) &&
-      (sensorInches4 < sensorInches1 && sensorInches4 < sensorInches2 && sensorInches4 < sensorInches3)) {
-    inches = sensorInches4;
-    //turnAllBlue();
-    sendLogDataToServer();
-    Serial.print('Sensor 4: ');
-  }
-  
-  Serial.println(inches);
-  
+  delay(200);
   /*inches = 5;
   processGreen();
     processYellow();
@@ -123,6 +56,129 @@ void loop() {
   }
   Serial.println();
   inactivityCheck();
+}
+
+void readDistanceSensor() {
+  // The sensor is triggered by a HIGH pulse of 10 or more microseconds.
+  // Give a short LOW pulse beforehand to ensure a clean HIGH pulse:
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(5);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+ 
+  // Read the signal from the sensor: a HIGH pulse whose
+  // duration is the time (in microseconds) from the sending
+  // of the ping to the reception of its echo off of an object.
+  pinMode(echoPin, INPUT);
+  duration = pulseIn(echoPin, HIGH);
+ 
+  // Convert the time into a distance
+  cm = (duration/2) / 29.1;     // Divide by 29.1 or multiply by 0.0343
+  inches = (duration/2) / 74;   // Divide by 74 or multiply by 0.0135
+  //Serial.print("inches: ");
+  //Serial.print(inches);
+}
+
+void resetAllLights() {
+  if (inches > 10) {
+    turnAllOff();
+  } else {
+    if (sleepMode == 0) {
+      sendLogDataToServer();
+      turnAllWhite();
+    } else {
+      turnAllOff();
+    }
+  }
+}
+
+void turnAllOff() {
+  for(int i = 0; i < NUM_LEDS; i++) {
+    leds[i] = CRGB(0,0,0);
+  }
+}
+
+void turnAllWhite() {
+  for(int i = 0; i < NUM_LEDS; i++) {
+    leds[i] = CRGB(255,255,255);
+  }
+}
+
+void processGreen() {
+  int greenInches = 0;
+  int activeGreenLight = 0;
+  if (inches <= 50) activeGreenLight = 1;
+  if (inches > 30 && inches <= 50) greenInches = 50 - inches;
+  if (inches <= 30) greenInches = 20;
+  
+  if (activeGreenLight == 1) {
+    //Serial.print("  -  greenInches: ");
+    //Serial.print(greenInches);
+    for(int i = 0; i <= greenInches; i++) {
+      leds[i] = CRGB(0,255,0);
+      leds[99 - i] = CRGB(0,255,0);
+      leds[i + 100] = CRGB(0,255,0);
+    }
+  }
+}
+
+void processYellow() {
+  int yellowInches = 0;
+  int activeYellowLight = 0;
+  if (inches <= 30) activeYellowLight = 1;
+  if (inches > 10 && inches <= 30) yellowInches = 30 - inches;
+  if (inches <= 10) yellowInches = 20;
+
+  if (activeYellowLight == 1) {
+    //Serial.print("  -  yellowInches: ");
+    //Serial.print(yellowInches);
+    for(int i = 0; i <= yellowInches; i++) {
+      leds[i + 20] = CRGB(255,255,0);
+      leds[79 - i] = CRGB(255,255,0);
+      leds[i + 120] = CRGB(255,255,0);
+    }
+  }
+}
+
+void processRed() {
+  int redInches = 0;
+  if (inches <= 10) redInches = 10 - inches;
+
+  if (redInches > 0) {
+    //Serial.print("redInches: ");
+    //Serial.print(redInches);
+    for(int i = 0; i <= redInches; i++) {
+      leds[i + 40] = CRGB(255,0,0);
+      leds[59 - i] = CRGB(255,0,0);
+      leds[140 + i] = CRGB(255,0,0);
+    }
+  }
+}
+
+void inactivityCheck() {
+  if (inches == (toleranceValue - 1) ||
+      inches == toleranceValue ||
+      inches == (toleranceValue + 1)) {
+    if (inactivityCounter < inactivityTimeoutValue) {
+      inactivityCounter++;
+      sleepMode = 0;
+      turnAllLightsOff = 0;
+    }
+    if (inactivityCounter == inactivityTimeoutValue) {
+      turnAllLightsOff = 1;
+      if (sleepMode == 0) {
+        turnAllOff();
+        FastLED.show();
+      }
+      sleepMode = 1;
+    }
+  } else {
+    toleranceValue = inches;
+    inactivityCounter = 0;
+    sleepMode = 0;
+    turnAllLightsOff = 0;
+  }
 }
 
 void sendLogDataToServer() {
@@ -263,3 +319,4 @@ void inactivityCheck() {
     turnAllLightsOff = 0;
   }
 }
+
