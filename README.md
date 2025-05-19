@@ -1,4 +1,4 @@
-# A ESP8266 based Parking Assist that helps park a car in a garage, as close to the wall as 1 inch. The main functions include:
+# A ESP8266 based Parking Assist that helps park a car in a tight garage, as close to the wall as 1 inch. The main functions include:
 
 #### 1) Connect to the WiFi network using the ESP8266 WiFi card;
 #### 2) Control a 2811 LED strip using the FastLED library;
